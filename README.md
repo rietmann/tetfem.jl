@@ -35,7 +35,7 @@ The code is structured as a number of modules, such as `Mesh`, `FEM`, or `TimeSt
     
     push!(LOAD_PATH, pwd())
 
-The package also reads and writes binary VTK files natively using a small wrapper library written in C++ that yields `libvtk.so`. To build it, first edit the `src.cpp/CMakeLists.txt` to reflect where your *shared* VTK libraries (e.g.,`libvtkCommon.so` are installed.
+The package also reads and writes binary VTK files natively using a small wrapper library written in C++ that yields `libvtk.so`. To build it, first edit the `src.cpp/CMakeLists.txt` to reflect where your *shared* VTK libraries (e.g.,`libvtkCommon.so`) are installed.
 
     include_directories(
       ${CMAKE_CURRENT_SOURCE_DIR}/include
