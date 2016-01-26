@@ -62,7 +62,7 @@ function run_timestepping_rk4(x_n::Vector{Float64},y_n::Vector{Float64},
     vn = zeros(length(un))
 
     if visualization_to_disk
-        initialize_savepoints2d(dofindex,length(Ke),tri,x_n,y_n,un,"/scratch/tetfem/output_files")
+        initialize_savepoints2d(dofindex,length(Ke),tri,x_n,y_n,un,visualization_dir)
     end
         
     println("Simulating for T=$(finaltime) in $(Nsteps) steps @ dt=$(dt)")
@@ -89,7 +89,7 @@ function run_timestepping_rk4(x_n::Vector{Float64},y_n::Vector{Float64},
         
         if it%error_check_every == 0
             if visualization_to_disk
-                savepoints2d(un,it,"/scratch/tetfem/output_files")
+                savepoints2d(un,it,visualization_dir)
             end
             
             if error_check_exact
@@ -216,7 +216,7 @@ function run_timestepping(x_n::Vector{Float64},y_n::Vector{Float64},
     vn = zeros(length(un))
 
     if visualization_to_disk
-        initialize_savepoints2d(dofindex,length(Ke),tri,x_n,y_n,un,"/scratch/tetfem/output_files/")
+        initialize_savepoints2d(dofindex,length(Ke),tri,x_n,y_n,un,visualization_dir)
     end
     println("Simulating for T=$(finaltime) in $(Nsteps) steps @ dt=$(dt)")
     
@@ -239,7 +239,7 @@ function run_timestepping(x_n::Vector{Float64},y_n::Vector{Float64},
 
         if it%error_check_every == 0
             if visualization_to_disk
-                savepoints2d(un,it,"/scratch/tetfem/output_files")
+                savepoints2d(un,it,visualization_dir)
             end
             
             if error_check_exact

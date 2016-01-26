@@ -29,7 +29,10 @@ A (spectral) finite element package to simulate the wave equation. Contains
     MathProgBase
     JuMP
 
-Place this list into your `~/.julia/v0.4/REQUIRE` and call `Pkg.update()` within the Julia repl to install them all.
+Place this list into your `~/.julia/v0.4/REQUIRE` and call `Pkg.update()` within the Julia repl to install them all. `PyCall` is easiest with the anaconda python distribution and the path can be set with
+
+    ENV["PYTHON"] = "... path of the python program you want ..."
+    Pkg.build("PyCall")
 
 The code is structured as a number of modules, such as `Mesh`, `FEM`, or `TimeStepping`, each of which covers its specific area and is loaded using either the `using` `import` commands. Unfortunately, Julia doesn't load modules in the current directory unless you add the following to your `$HOME/.juliarc.jl`, which adds the current directory to Julia's `LOAD_PATH`.
     
@@ -39,11 +42,11 @@ The package also reads and writes binary VTK files natively using a small wrappe
 
     include_directories(
       ${CMAKE_CURRENT_SOURCE_DIR}/include
-      /opt/include/vtk-5.10/    
+      /usr/include/vtk-5.x/    
       )
     
     link_directories(
-      /opt/lib/vtk-5.10
+      /usr/lib/
       )  
 
 You may have to install VTK by hand to get the shared libraries built. If you install them somewhere non-standard (like shown in this example), you'll have to tell system where to find them. On an Ubuntu machine, create the file `/etc/ld.so.conf.d/vtk.conf` and add `/opt/lib/vtk-5.10/` to it. Then run `sudo ldconfig`, and this library will be added to the shared library search path.
