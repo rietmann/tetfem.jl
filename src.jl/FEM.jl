@@ -1,6 +1,7 @@
 module FEM
 
-export buildM,buildM_full,buildM_full_faster,buildK, buildK_quad, buildM_alt, measureK, geometric_components
+export buildM, buildM_full, buildM_full_faster, buildK, buildK_quad,
+       buildM_alt, measureK, geometric_components, build_c_prime
 
 using Element
 using PyCall
@@ -267,9 +268,9 @@ end
 
 # 3D
 function buildM(element::Tetrahedra,
-                v_x::Vector{Float64},v_y::Vector{Float64},v_z::Vector{Float64},
+                v_x::Vector{Float64}, v_y::Vector{Float64}, v_z::Vector{Float64},
                 EToV::Vector{Vector{Int64}},
-                dofindex::Vector{Vector{Int64}},ndof)
+                dofindex::Vector{Vector{Int64}}, ndof)
 
     K = length(EToV)
     p_Np = length(element.r)
@@ -281,20 +282,21 @@ function buildM(element::Tetrahedra,
         v4 = [v_x[EToV[k][4]],v_y[EToV[k][4]],v_z[EToV[k][4]]]
 
         m_k = measureK(v1,v2,v3,v4)
+
         indexE = dofindex[k]
         for i=1:p_Np
             ie = indexE[i]
             wi = element.quadrature_weights[i]
             # assemble diagonal mass matrix
-            mass_matrix[ie] += m_k*wi
+            mass_matrix[ie] += m_k * wi
         end
     end
 
-    mass_matrix_inv = 1./mass_matrix
+    mass_matrix_inv = 1 ./ mass_matrix
     if length(find(isnan(mass_matrix_inv))) > 0
         error("Minv contains NaN")
     end
-    return(mass_matrix,mass_matrix_inv)
+    return(mass_matrix, mass_matrix_inv)
     
 end
 
@@ -398,7 +400,7 @@ function geometric_components(v1,v2,v3,v4)
             -dydr*(dxds*dzdt-dzds*dxdt)
             +dzdr*(dxds*dydt-dyds*dxdt))
 
-    if abs(detJ) < 1e-8
+    if detJ < 1e-8
         error("|Jacobian| too small")
     end
     
@@ -418,6 +420,31 @@ function geometric_components(v1,v2,v3,v4)
             drdy,dsdy,dtdy,
             drdz,dsdz,dtdz,
             detJ)
+    
+end
+
+function geometric_components3(v1, v2, v3, v4)
+
+    x1 = v1[1];  y1 = v1[2];  z1 = v1[3];
+    x2 = v2[1];  y2 = v2[2];  z2 = v2[3];
+    x3 = v3[1];  y3 = v3[2];  z3 = v3[3];
+    x4 = v4[1];  y4 = v4[2];  z4 = v4[3];
+
+    J = zeros(3,3)
+    J[1,1] = (x2-x1);  J[1,2] = (x3-x1); J[1,3] = (x4-x1);
+    J[2,1] = (y2-y1);  J[2,2] = (y3-y1); J[2,3] = (y4-y1);
+    J[3,1] = (z2-z1);  J[3,2] = (z3-z1); J[3,3] = (z4-z1);
+    detJ = det(J)
+
+    # should be require the Jacobian to be positive? I think this is connected
+    # to the node ordering.
+    if abs(detJ) < 1e-8
+        error("|Jacobian| too small")
+    end
+
+    invJ = inv(J)
+    
+    return J, invJ, detJ
     
 end
 
@@ -453,7 +480,6 @@ end
 function buildK(element::Element1D,v_x,c_m,EToV,ndof)
     K = length(EToV)
     p_Np = length(element.r)
-    mass_matrix = zeros(ndof)
     Ke = Matrix{Float64}[]
     for k=1:K
         v1 = v_x[EToV[k][1]]
@@ -469,7 +495,6 @@ end
 function buildK(element::Element1D,v_x,EToV,ndof)
     K = length(EToV)
     p_Np = length(element.r)
-    mass_matrix = zeros(ndof)
     Ke = Matrix{Float64}[]
     for k=1:K
         v1 = v_x[EToV[k][1]]
@@ -486,7 +511,6 @@ end
 function buildK(element::Triangle,v_x,v_y,EToV,ndof)
     K = length(EToV)
     p_Np = length(element.r)
-    mass_matrix = zeros(ndof)
     Ke = Matrix{Float64}[]
     for k=1:K
         v1 = [v_x[EToV[k][1]],v_y[EToV[k][1]]]
@@ -528,7 +552,6 @@ function buildK(element::Tetrahedra,v_x,v_y,v_z,EToV,ndof)
     
     K = length(EToV)
     p_Np = length(element.r)
-    mass_matrix = zeros(ndof)
     Ke = Matrix{Float64}[]
     for k=1:K
         v1 = [v_x[EToV[k][1]],v_y[EToV[k][1]],v_z[EToV[k][1]]]
@@ -536,61 +559,43 @@ function buildK(element::Tetrahedra,v_x,v_y,v_z,EToV,ndof)
         v3 = [v_x[EToV[k][3]],v_y[EToV[k][3]],v_z[EToV[k][3]]]
         v4 = [v_x[EToV[k][4]],v_y[EToV[k][4]],v_z[EToV[k][4]]]
         
-        m_k = measureK(v1,v2,v3,v4)
+        m_k = measureK(v1,v2,v3,v4) # = abs(det(J) * 6)
         
         (rx,sx,tx,
          ry,sy,ty,
          rz,sz,tz,
          detJ) = geometric_components(v1,v2,v3,v4)
 
-        # (rx2,sx2,tx2,
-        #  ry2,sy2,ty2,
-        #  rz2,sz2,tz2,
-        #  detJ2) = geometric_components2(v1,v2,v3,v4)
-
-        # # test geometric components
-        # if (fcmp(rx,rx2) && fcmp(sx,sx2) && fcmp(tx,tx2)) == false
-        #     error("geometric x don't agree")
-        # end
-        # if (fcmp(ry,ry2) && fcmp(sy,sy2) && fcmp(ty,ty2)) == false
-        #     error("geometric y don't agree")
-        # end
-        # if (fcmp(rz,rz2) && fcmp(sz,sz2) && fcmp(tz,tz2)) == false
-        #     error("geometric z don't agree")
-        # end
-        # if (fcmp(detJ,detJ2)) == false
-        #     error("geometric detJ don't agree")            
-        # end
         
         Kx = (m_k) * ((rx*rx).*element.d_Phi_rr  
-                      + (rx*sx).*element.d_Phi_rs
-                      + (rx*sx).*element.d_Phi_sr
-                      + (sx*sx).*element.d_Phi_ss
-                      + (rx*tx).*element.d_Phi_rt
-                      + (rx*tx).*element.d_Phi_tr
-                      + (sx*tx).*element.d_Phi_st
-                      + (sx*tx).*element.d_Phi_ts
-                      + (tx*tx).*element.d_Phi_tt)
+                    + (rx*sx).*element.d_Phi_rs
+                    + (rx*sx).*element.d_Phi_sr
+                    + (sx*sx).*element.d_Phi_ss
+                    + (rx*tx).*element.d_Phi_rt
+                    + (rx*tx).*element.d_Phi_tr
+                    + (sx*tx).*element.d_Phi_st
+                    + (sx*tx).*element.d_Phi_ts
+                    + (tx*tx).*element.d_Phi_tt)
         
         Ky = (m_k) * ((ry*ry).*element.d_Phi_rr  
-                      + (ry*sy).*element.d_Phi_rs
-                      + (ry*sy).*element.d_Phi_sr
-                      + (sy*sy).*element.d_Phi_ss
-                      + (ry*ty).*element.d_Phi_rt
-                      + (ry*ty).*element.d_Phi_tr
-                      + (sy*ty).*element.d_Phi_st
-                      + (sy*ty).*element.d_Phi_ts
-                      + (ty*ty).*element.d_Phi_tt)
+                    + (ry*sy).*element.d_Phi_rs
+                    + (ry*sy).*element.d_Phi_sr
+                    + (sy*sy).*element.d_Phi_ss
+                    + (ry*ty).*element.d_Phi_rt
+                    + (ry*ty).*element.d_Phi_tr
+                    + (sy*ty).*element.d_Phi_st
+                    + (sy*ty).*element.d_Phi_ts
+                    + (ty*ty).*element.d_Phi_tt)
 
         Kz = (m_k) * ((rz*rz).*element.d_Phi_rr  
-                      + (rz*sz).*element.d_Phi_rs
-                      + (rz*sz).*element.d_Phi_sr
-                      + (sz*sz).*element.d_Phi_ss
-                      + (rz*tz).*element.d_Phi_rt
-                      + (rz*tz).*element.d_Phi_tr
-                      + (sz*tz).*element.d_Phi_st
-                      + (sz*tz).*element.d_Phi_ts
-                      + (tz*tz).*element.d_Phi_tt)
+                    + (rz*sz).*element.d_Phi_rs
+                    + (rz*sz).*element.d_Phi_sr
+                    + (sz*sz).*element.d_Phi_ss
+                    + (rz*tz).*element.d_Phi_rt
+                    + (rz*tz).*element.d_Phi_tr
+                    + (sz*tz).*element.d_Phi_st
+                    + (sz*tz).*element.d_Phi_ts
+                    + (tz*tz).*element.d_Phi_tt)
 
         
         push!(Ke,Kx+Ky+Kz)
@@ -598,6 +603,87 @@ function buildK(element::Tetrahedra,v_x,v_y,v_z,EToV,ndof)
     end
 
     return Ke
+end
+
+
+
+# 3d elastic version
+function build_c_prime(element::Tetrahedra, v_x, v_y, v_z, EToV, ndof)
+    
+    K = length(EToV)
+    p_Np = length(element.r)
+    c_prime = Array{Float64,4}[]
+
+    c_iso = c_ijkl_iso(1., 1.)
+
+    for k=1:K
+        v1 = [v_x[EToV[k][1]], v_y[EToV[k][1]], v_z[EToV[k][1]]]
+        v2 = [v_x[EToV[k][2]], v_y[EToV[k][2]], v_z[EToV[k][2]]]
+        v3 = [v_x[EToV[k][3]], v_y[EToV[k][3]], v_z[EToV[k][3]]]
+        v4 = [v_x[EToV[k][4]], v_y[EToV[k][4]], v_z[EToV[k][4]]]
+
+        m_k = measureK(v1,v2,v3,v4) # = abs(det(J) / 6)
+        
+        (J, invJ, detJ) = geometric_components3(v1, v2, v3, v4)
+
+        #println("$(m_k), $(detJ / 6)")
+        
+        ce = c_prime_ijkl(c_iso, invJ, detJ)
+        
+        push!(c_prime, ce)
+
+    end
+
+    return c_prime
+end
+
+
+function c_ijkl_iso_element(lambda::Float64, mu::Float64, i::Int, j::Int, k::Int, l::Int)
+    # compute the elasticity tensor element wise for an isotropic medium
+    return (lambda * (i == j) * (k == l) 
+            + mu * ((i == k) * (j == l) + (i == l) * (j == k)))
+end
+
+
+function c_ijkl_iso(lambda::Float64, mu::Float64)
+    # compute the elasticity tensor for an isotropic medium
+
+    c_ijkl = zeros(3, 3, 3, 3)
+    for i = 1:3
+        for j = 1:3
+            for k = 1:3
+                for l = 1:3
+                    c_ijkl[i, j, k, l] = c_ijkl_iso_element(
+                        lambda, mu, i, j, k, l)
+                end
+            end
+        end
+    end
+    return c_ijkl
+end
+
+
+function c_prime_ijkl(c_ijkl::Array{Float64,4}, invJ::Array{Float64,2}, detJ::Float64)
+    # ignores the thermodynamic symmetry c_prime[ijkl] = c_prime[klij], hence
+    # uses 81 floats in memory instead of 45
+
+    c_prime_ijkl = zeros(3, 3, 3, 3)
+    for i = 1:3
+        for j = 1:3
+            for k = 1:3
+                for l = 1:3
+                    for m = 1:3
+                        for n = 1:3
+                            c_prime_ijkl[i, j, k, l] += 
+                                detJ * invJ[j, m] * invJ[l, n] * c_ijkl[i, m, k, n]
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return c_prime_ijkl
+
 end
 
 
