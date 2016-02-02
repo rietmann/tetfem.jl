@@ -101,6 +101,3 @@ Julia's module-loading system is still a bit primitive, so if you make a change 
     julia> reload("TimeStepping"); reload("RunSimulation2d"); reload("FlemMain")
 
 If you make a change and the flow of modules is too complicated, just exit julia (CTRL-d) and `reload("FlemMain")`.
-
-
-
