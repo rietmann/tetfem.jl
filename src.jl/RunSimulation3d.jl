@@ -25,6 +25,7 @@ function runsimulation3d(meshfile)
     end    
     
     (dofindex,x_n,y_n,z_n) = buildxyz(v_x,v_y,v_z,EToV,tet)
+    println("Loaded mesh with $(length(EToV)) elements and $(length(x_n)) unique degrees of freedom.")
     
     bc_array = dirichlet_bc(0.0,2.0,0.0,2.0,0.0,2.0,x_n,y_n,z_n)
     ndof = length(x_n)
@@ -34,14 +35,17 @@ function runsimulation3d(meshfile)
 
     element_radius = elementradius3d(v_x,v_y,v_z,EToV)
     h_min = minimum(element_radius)
-    
+    h_max = maximum(element_radius)
+
     finaltime = 2 * 2/sqrt(3)
-    @time (un,error) = run_timestepping(x_n,y_n,z_n,Minv,M,Ke,bc_array,dofindex,h_min,tet,finaltime)
+
+    @time (un,error) = run_timestepping(x_n,y_n,z_n,Minv,Ke,bc_array,dofindex,h_min,tet,finaltime)
     
-    return (h_min,error)
+    return (h_min,h_max,error)
     
 end
 
+# runsimulation3d("/home/rietmann/Dropbox/PostDoc/TetFemJulia/meshes/3D_trelis_2x2x2/mesh_2x2x2_0.vtk")
 # runsimulation3d("/scratch/tetfem_3d/2x2x2_mesh_0.vtk")
 
 end

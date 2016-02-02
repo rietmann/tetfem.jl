@@ -51,7 +51,7 @@ function run_timestepping_rk4(x_n::Vector{Float64},y_n::Vector{Float64},
                              Ke::Vector{Matrix{Float64}},
                              bc::Vector{Float64},
                              dofindex::Vector{Vector{Int}},
-                             h_min::Float64, tri::ElementT,finaltime)
+                             h_min::Float64, tri::Triangle,finaltime)
 
     dt = tri.cfl_factor*h_min*1.5
     Nsteps = int(ceil(finaltime/dt))
@@ -271,7 +271,6 @@ end
 # 3D 4th-order Leap-frog timestepping
 function run_timestepping(x_n::Vector{Float64},y_n::Vector{Float64},z_n::Vector{Float64},
                           Minv::Vector{Float64},
-                          Mlu,
                           Ke::Vector{Matrix{Float64}},
                           bc::Vector{Float64},
                           dofindex::Vector{Vector{Int}},
@@ -285,7 +284,7 @@ function run_timestepping(x_n::Vector{Float64},y_n::Vector{Float64},z_n::Vector{
     println("$(Nsteps) steps at dt=$(dt) for T=$(finaltime)")
 
     # initial condition Leap-Frog
-    un = cos(pi/2*sqrt(3)*0*dt)sin(pi/2*x_n).*sin(pi/2*y_n).*sin(pi/2*z_n)
+    un = cos(pi/2*sqrt(3)*0*dt)*sin(pi/2*x_n).*sin(pi/2*y_n).*sin(pi/2*z_n)
     unm1 = cos(pi/2*sqrt(3)*(-1)*dt)*sin(pi/2*x_n).*sin(pi/2*y_n).*sin(pi/2*z_n)
     unp1 = zeros(length(un))
     vn = zeros(length(un))
@@ -304,7 +303,7 @@ function run_timestepping(x_n::Vector{Float64},y_n::Vector{Float64},z_n::Vector{
     
     for it=1:Nsteps
                 
-        # Explicit Newmark 2nd/4th-order time stepping
+        # Explicit 4th-order time stepping
         b = applyKun(Ke,un,bc,dofindex)
         
         # # # 4th order leapfrog

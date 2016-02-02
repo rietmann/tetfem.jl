@@ -9,6 +9,8 @@ using ProgressMeter
 
 export buildP1constants, buildP2constants, buildP3constants, buildP3constants_mat, buildK_withquadrature
 
+import PyPlot
+
 @pyimport numpy as np
 
 function buildP1constants()
@@ -257,11 +259,108 @@ function buildK_withquadrature(tet)
     
 end
 
-function buildP3constants()
+function testPyVsJulia()
 
-    (quadrature_weights,r,s,t) = nodes_and_weights_tetP3()
-    EToV_local = nodal_elements_tetP3()
+    rs = "ss"
+    jldopen("d_Phi_$rs.jld") do file
+        d_Phi_rr = 6*read(file,"d_Phi_$rs")
+        Kall = np.load("K_p3tetrahedra.npz")
+        d_Phi_rr_py = get(Kall,"K$(rs)")
 
+        PyPlot.figure(1)
+        PyPlot.clf()
+        PyPlot.plot(1:2500,d_Phi_rr[:],"k-o",1:2500,d_Phi_rr_py[:],"r--*")
+        
+    end
+    
+    
+end
+
+function build_d_Phi_quadrature(quadrature_weights,phi_n_r_m,phi_n_s_m,phi_n_t_m)
+
+    npts = length(quadrature_weights)
+    d_Phi_rr = zeros(npts,npts)
+    d_Phi_rs = zeros(npts,npts)
+    d_Phi_ss = zeros(npts,npts)
+    d_Phi_st = zeros(npts,npts)
+    d_Phi_rt = zeros(npts,npts)
+    d_Phi_tt = zeros(npts,npts)
+    mref = 1/6
+    for i=1:npts
+        for j=1:npts
+            d_Phi_rr[i,j] = sum( phi_n_r_m[i,:] .* phi_n_r_m[j,:] .* (quadrature_weights)' )
+            d_Phi_rs[i,j] = sum( phi_n_r_m[i,:] .* phi_n_s_m[j,:] .* (quadrature_weights)' )
+            d_Phi_ss[i,j] = sum( phi_n_s_m[i,:] .* phi_n_s_m[j,:] .* (quadrature_weights)' )
+            d_Phi_st[i,j] = sum( phi_n_s_m[i,:] .* phi_n_t_m[j,:] .* (quadrature_weights)' )
+            d_Phi_rt[i,j] = sum( phi_n_r_m[i,:] .* phi_n_t_m[j,:] .* (quadrature_weights)' )
+            d_Phi_tt[i,j] = sum( phi_n_t_m[i,:] .* phi_n_t_m[j,:] .* (quadrature_weights)' )
+        end
+    end
+
+    # take advantage of symmetry relations
+    d_Phi_sr = d_Phi_rs'
+    d_Phi_ts = d_Phi_st'
+    d_Phi_tr = d_Phi_rt'
+
+
+    # build new tetrahedra with quadrature build matrices
+    return (d_Phi_rr,d_Phi_rs,d_Phi_sr,d_Phi_rt,d_Phi_tr,d_Phi_ss,d_Phi_st,d_Phi_ts,d_Phi_tt)
+    
+end
+
+# builds derivatives of phi at nodal locations. This can be a bit
+# slow, so we cache the result in "p3_phi_rst.jld"
+function buildPhi_rst(rn,sn,tn)
+
+    if !isfile("p3_phi_rst.jld")
+    
+        r,s,t = SymPy.symbols("r,s,t")
+
+        phi = PolySpace.buildPhiXYZ((r,s,t),(rn,sn,tn))    
+
+        npts = length(rn)
+        phi_n_r_m = zeros(npts,npts)
+        phi_n_s_m = zeros(npts,npts)
+        phi_n_t_m = zeros(npts,npts)
+
+        p = Progress(npts,1)
+        for n=1:npts
+            phi_r = SymPy.diff(phi[n],r)
+            phi_s = SymPy.diff(phi[n],s)
+            phi_t = SymPy.diff(phi[n],t)
+            for m=1:npts
+                phi_n_r_m[n,m] = SymPy.subs(phi_r,(r,rn[m]),(s,sn[m]),(t,tn[m]))
+                phi_n_s_m[n,m] = SymPy.subs(phi_s,(r,rn[m]),(s,sn[m]),(t,tn[m]))
+                phi_n_t_m[n,m] = SymPy.subs(phi_t,(r,rn[m]),(s,sn[m]),(t,tn[m]))
+            end
+            next!(p)
+        end
+
+        jldopen("p3_phi_rst.jld","w") do file
+            write(file,"phi_n_r_m",phi_n_r_m)
+            write(file,"phi_n_s_m",phi_n_s_m)
+            write(file,"phi_n_t_m",phi_n_t_m)
+        end
+        
+        return (phi_n_r_m,phi_n_s_m,phi_n_t_m)
+    else
+        jldopen("p3_phi_rst.jld","r") do file
+            phi_n_r_m = read(file,"phi_n_r_m")
+            phi_n_s_m = read(file,"phi_n_s_m")
+            phi_n_t_m = read(file,"phi_n_t_m")
+
+            return (phi_n_r_m,phi_n_s_m,phi_n_t_m)
+        end        
+    end
+end
+
+
+# loads precomputed d_Phi matrices (exact) computed using Python or
+# Julia (all using SymPy).
+function loadP3Exact_d_Phi(npts)
+
+    error("The exact precomputed matrices do not converge correctly")
+    
     if isfile("K_quadrature_p3tetrahedra.npz")
         println("Using quadrature-built K from python")
         Kall = np.load("K_quadrature_p3tetrahedra.npz")
@@ -287,8 +386,41 @@ function buildP3constants()
         d_Phi_tr = d_Phi_rt'
         d_Phi_ts = d_Phi_st'
         
-    else
+    elseif isfile("d_Phi_rr.jld")
 
+        println("Reading new Krr matrices")
+                
+        d_Phi_rr = zeros(npts,npts)
+        d_Phi_rs = zeros(npts,npts)
+        d_Phi_rt = zeros(npts,npts)
+        d_Phi_ss = zeros(npts,npts)
+        d_Phi_st = zeros(npts,npts)
+        d_Phi_tt = zeros(npts,npts)
+
+        jldopen("d_Phi_rr.jld") do file
+            d_Phi_rr = 6*read(file,"d_Phi_rr")
+        end
+        jldopen("d_Phi_rs.jld") do file
+            d_Phi_rs = 6*read(file,"d_Phi_rs")
+        end
+        jldopen("d_Phi_rt.jld") do file
+            d_Phi_rt = 6*read(file,"d_Phi_rt")
+        end
+        jldopen("d_Phi_ss.jld") do file
+            d_Phi_ss = 6*read(file,"d_Phi_ss")
+        end
+        jldopen("d_Phi_st.jld") do file
+            d_Phi_st = 6*read(file,"d_Phi_st")
+        end
+        jldopen("d_Phi_tt.jld") do file
+            d_Phi_tt = 6*read(file,"d_Phi_tt")
+        end
+        # take advantage of symmetry
+        d_Phi_sr = d_Phi_rs'
+        d_Phi_tr = d_Phi_rt'
+        d_Phi_ts = d_Phi_st'
+    else
+        error("Python-derived Stiffness incorrect")
         # prebuilt in python
         Kall = np.load("K_p3tetrahedra.npz")
         d_Phi_rr = get(Kall,"Krr")
@@ -312,6 +444,21 @@ function buildP3constants()
         
         
     end
+
+    
+end
+
+function buildP3constants()
+
+    (quadrature_weights,r,s,t) = nodes_and_weights_tetP3()
+    EToV_local = nodal_elements_tetP3()
+
+    # build (or load precomputed) phi derivatives
+    (phi_n_r_m,phi_n_s_m,phi_n_t_m) = buildPhi_rst(r,s,t)
+    # build d_Phi_rr,etc using quadrature and phi derivatives evaluated at nodal locations
+    (d_Phi_rr,d_Phi_rs,d_Phi_sr,
+     d_Phi_rt,d_Phi_tr,d_Phi_ss,d_Phi_st,
+     d_Phi_ts,d_Phi_tt) = build_d_Phi_quadrature(quadrature_weights,phi_n_r_m,phi_n_s_m,phi_n_t_m)
     
     println("Writing p3constants.jld")
     

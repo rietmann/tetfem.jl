@@ -16,22 +16,8 @@ function P2Tilde_bt(r,s,t)
     return P2t_bt
 end
 
+# Fixed bubble function
 function P2_b(r,s,t)
-    b_1 = r*s*(1-r-s)
-    b_2 = r*t*(1-r-t)
-    b_3 = t*s*(1-t-s)
-    b_4 = (1-r-s)*(1-r-t)*(1-t-s)
-    P2_b_1 = b_1 .* [r,s,r*s,r^2,s^2]
-    P2_b_2 = b_2 .* [r,t,r*t,r^2,t^2]
-    P2_b_3 = b_3 .* [t,s,t*s,t^2,s^2]
-    rr = (1-r-t)
-    ss = (1-s-t)
-    P2_b_4 = b_4 .* [rr,ss,rr^2,ss^2,rr*ss]
-    return [P2_b_1; P2_b_2; P2_b_3; P2_b_4]
-end
-
-# attempt to fix current approach
-function P2_b2(r,s,t)
     b_1 = r*s*(1-r-s-t)
     b_2 = r*t*(1-r-s-t)
     b_3 = t*s*(1-r-s-t)
@@ -71,7 +57,7 @@ function buildCoefficients(rs,Pall,r,s)
     return (P_a,A)
 end
 
-function buildCoefficients(rst,Pall,r,s,t)
+function buildCoefficients(rst::Tuple{Vector{Float64},Vector{Float64},Vector{Float64}},Pall::Vector{Sym},r::Sym,s::Sym,t::Sym)
     (rn,sn,tn) = rst
     N = length(rn)
     A = zeros(N,N)
@@ -151,14 +137,66 @@ function buildPhiXY(rs_symbols,xy)
     return phi
 end
 
+function buildKrs(phi::Vector{Sym},Krs::Matrix{Float64},dr::Sym,ds::Sym,rst,npts,matrixname)
+    filename = "$(matrixname).jld"
+    if !isfile(filename)
+        (r,s,t) = rst
+        println("Building $matrixname")
+        p = Progress(npts,1)
+        for i=1:npts
+            phi_i_r = diff(phi[i],dr)
+            for j=1:npts
+                phi_j_s = diff(phi[j],ds)
+                Krs[i,j] = 6*integrate(phi_i_r*phi_j_s,(r,0,1-s-t),(s,0,1-t),(t,0,1))
+            end
+            next!(p)
+        end
+        jldopen(filename,"w") do file
+            write(file,matrixname,Krs)
+        end
+    else
+        println("Skipping: $matrixname already built")
+    end
+end
+
+function buildStiffnessP3()
+
+    (r,s,t) = symbols("r,s,t")
+    tet = p3tetrahedra()
+    rst_n = (tet.r,tet.s,tet.t)
+    phi = buildPhiXYZ((r,s,t),rst_n)
+
+    npts = length(tet.r)
+    Krr = zeros(npts,npts)
+    Krs = zeros(npts,npts)
+    Kss = zeros(npts,npts)
+    Kst = zeros(npts,npts)
+    Krt = zeros(npts,npts)
+    Ktt = zeros(npts,npts)
+
+    # Krr
+    buildKrs(phi,Krr,r,r,(r,s,t),npts,"d_Phi_rr")    
+    # Krs
+    buildKrs(phi,Krs,r,s,(r,s,t),npts,"d_Phi_rs")    
+    # Kss
+    buildKrs(phi,Kss,s,s,(r,s,t),npts,"d_Phi_ss")
+    # Kst
+    buildKrs(phi,Kst,s,t,(r,s,t),npts,"d_Phi_st")
+    # Krt
+    buildKrs(phi,Krt,r,t,(r,s,t),npts,"d_Phi_rt")
+    # Ktt
+    buildKrs(phi,Ktt,t,t,(r,s,t),npts,"d_Phi_tt")
+    
+end
+
 
 function buildPhiXYZ(rst_symbols,xyz)
-
+    
     (r,s,t) = rst_symbols
 
     P2t_bt = P2Tilde_bt(r,s,t)
 
-    P2_b1234 = P2_b2(r,s,t)
+    P2_b1234 = P2_b(r,s,t)
 
     P3 = [1,
           r,r^2,r^3,s,s^2,s^3,t,t^2,t^3,
@@ -170,14 +208,12 @@ function buildPhiXYZ(rst_symbols,xyz)
     Pall = [P3; P2_b1234; P2t_bt]
 
     # if !isfile("p3coefficients.jld")
-    (pa,A) = buildCoefficients(xyz,Pall,r,s,t)
+    @time (pa,A) = buildCoefficients(xyz,Pall,r,s,t)
     
     # computed via mathematica
     # file = MAT.matopen("/home/rietmann/Dropbox/PostDoc/TetFemJulia/util/p_coefficients_new.mat")    
     # pa = MAT.read(file,"Pa")
     # MAT.close(file)
-    println("pa=$(typeof(pa))")
-    println("len pa=$(length(pa))")
     # else
     # file = jldopen("p3coefficients.jld")
     # pa = read(file,"pa")

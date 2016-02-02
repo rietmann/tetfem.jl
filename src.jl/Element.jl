@@ -9,7 +9,7 @@ using SymPy
 
 import Fekete
 
-export Element1D, Triangle, Tetrahedra, p2triangle, p3triangle, p3triangle_fekete, elementradius1d, elementradius2d, elementradius3d, p3tetrahedra, p1tetrahedra, p2tetrahedra, p3tetrahedra_noquad, p1element1d, p2element1d, p3element1d, p4element1d
+export Element1D, Triangle, Tetrahedra, p2triangle, p3triangle, p3triangle_fekete, elementradius1d, elementradius2d, elementradius3d, elementradius3d_viajacobian, p3tetrahedra, p1tetrahedra, p2tetrahedra, p3tetrahedra_noquad, p1element1d, p2element1d, p3element1d, p4element1d
 
 @pyimport numpy as np
 
@@ -494,6 +494,42 @@ function p3tetrahedra()
         
     end
 
+    
+end
+
+# volume of tetrahedra
+function measureK(v1,v2,v3,v4)
+    x0 = v1[1];  y0 = v1[2];  z0 = v1[3];
+    x1 = v2[1];  y1 = v2[2];  z1 = v2[3];
+    x2 = v3[1];  y2 = v3[2];  z2 = v3[3];
+    x3 = v4[1];  y3 = v4[2];  z3 = v4[3];
+    
+    # V = |a \cdot (b \cross c)|/6
+    
+    a = [x1-x0, y1-y0, z1-z0]
+    b = [x2-x0, y2-y0, z2-z0]
+    c = [x3-x0, y3-y0, z3-z0]
+    
+    m_k = abs(dot(cross(b,c),a))/6
+    
+    return m_k
+    
+end
+
+function elementradius3d_viajacobian(v_x,v_y,v_z,EToV)
+    K = length(EToV)
+    element_radius = zeros(K)
+    for k=1:K
+        v1 = [v_x[EToV[k][1]],v_y[EToV[k][1]],v_z[EToV[k][1]]]
+        v2 = [v_x[EToV[k][2]],v_y[EToV[k][2]],v_z[EToV[k][2]]]
+        v3 = [v_x[EToV[k][3]],v_y[EToV[k][3]],v_z[EToV[k][3]]]
+        v4 = [v_x[EToV[k][4]],v_y[EToV[k][4]],v_z[EToV[k][4]]]
+
+        vol = measureK(v1,v2,v3,v4)
+        element_radius[k] = (vol)^(1/3)
+    end
+    
+    return element_radius
     
 end
 

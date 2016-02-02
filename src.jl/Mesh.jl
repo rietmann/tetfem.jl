@@ -1,43 +1,13 @@
 module Mesh
 
-export MeshConstants, loadmesh, meshgen1d, visualizemesh2d, initialize_savepoints2d, savepoints2d, dirichlet_bc, ElementT, initialize_savepoints3d, savepoints3d, testffi_0_4
+export loadmesh, meshgen1d, visualizemesh2d, initialize_savepoints2d, savepoints2d, dirichlet_bc, initialize_savepoints3d, savepoints3d, testffi_0_4
 
 using Element
 
 using PyPlot
 using PyCall
 
-typealias ElementT Triangle
-
 include("TetFemConfig.jl")
-
-immutable MeshConstants{ElementT}
-    p_DIM::Int # Dimensions
-    
-    # x,y,z-coordinates of element vertices
-    v_x::Matrix{Float64}
-    v_y::Matrix{Float64} 
-    v_z::Matrix{Float64} 
-
-    element_radius_h::Vector
-
-    dt::Float64
-
-    # Mass matrix and its inverse;
-    # stored as a vector as both are diagonal
-    M::Vector{Float64}
-    Minv::Vector{Float64}
-
-    
-    # Stiffness matrix;
-    # stored as vector of (p_Np x p_Np) matrices,
-    # where a gather and scatter are required for evaluation on the
-    # global degrees of freedom
-    Ke::Vector{Matrix{Float64}}
-
-    reference_element::ElementT
-    
-end
 
 function testffi(blah::AbstractString)
 
@@ -102,6 +72,10 @@ function loadmesh(mesh_file::AbstractString)
 
     println("Loading $(mesh_file)")
 
+    if !isfile(mesh_file)
+        error("$(mesh_file) doesn't exist. Please check the given path.")
+    end
+    
     c_verts_per_element = Cint[0]
     c_num_elements = Cint[0]
     c_num_verts = Cint[0]
