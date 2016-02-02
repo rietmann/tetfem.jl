@@ -485,7 +485,7 @@ function p3tetrahedra()
         # d_Phi_tr = d_Phi_rt'
         # d_Phi_ts = d_Phi_st'
         
-        cfl_factor = 0.03
+        cfl_factor = 0.063
 
         # note that d_Phi_sr = d_Phi_rs' (transpose)
         return Tetrahedra(3,length(r),r,s,t,quadrature_weights,cfl_factor,
@@ -516,6 +516,13 @@ function measureK(v1,v2,v3,v4)
     
 end
 
+function elementradius3d(v_x,v_y,v_z,EToV)
+
+    # choose jacobian element radius
+    return elementradius3d_viajacobian(v_x,v_y,v_z,EToV)
+    
+end
+
 function elementradius3d_viajacobian(v_x,v_y,v_z,EToV)
     K = length(EToV)
     element_radius = zeros(K)
@@ -533,7 +540,7 @@ function elementradius3d_viajacobian(v_x,v_y,v_z,EToV)
     
 end
 
-function elementradius3d(v_x,v_y,v_z,EToV)
+function elementradius3d_shortestedge(v_x,v_y,v_z,EToV)
 
     K = length(EToV)
     element_radius = zeros(K)
